@@ -41,14 +41,14 @@ html, body {
 body {
   overflow-x: hidden;
   overscroll-behavior-y: none;
-  background: linear-gradient(180deg, var(--pink-light) 0%, var(--cream) 45%, var(--mint) 100%);
-  background-attachment: fixed;
-  background-size: 100% 100%;
-  background-repeat: no-repeat;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: transparent;
 }
 html {
-  background-color: var(--pink-light);
   overscroll-behavior-y: none;
+  background: linear-gradient(180deg, var(--pink-light) 0%, var(--cream) 45%, var(--mint) 100%) no-repeat fixed;
+  background-color: var(--mint);
 }
 
 #app {
