@@ -830,11 +830,14 @@ function giftForm(g) {
   form.querySelector('#f-image').onchange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    if (file.size > 1.5 * 1024 * 1024) return toast('圖片太大（請小於 1.5MB）', 'error');
-    const dataUrl = await fileToDataUrl(file);
-    const compressed = await compressImage(dataUrl, 600);
-    data.image = compressed;
-    form.querySelector('#preview-wrap').innerHTML = `<img src="${compressed}" style="width:100%;border-radius:14px;">`;
+    if (file.size > 15 * 1024 * 1024) return toast('圖片太大（請小於 15MB）', 'error');
+    try {
+      const compressed = await compressImage(file, 800);
+      data.image = compressed;
+      form.querySelector('#preview-wrap').innerHTML = `<img src="${compressed}" style="width:100%;border-radius:14px;">`;
+    } catch (err) {
+      toast('圖片處理失敗：' + err.message, 'error');
+    }
   };
 
   form.querySelector('#save').onclick = () => {
@@ -910,26 +913,49 @@ function fileToDataUrl(file) {
     r.readAsDataURL(file);
   });
 }
-function compressImage(dataUrl, maxDim) {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => {
-      let { width, height } = img;
-      if (width > maxDim || height > maxDim) {
-        if (width > height) { height = height * maxDim / width; width = maxDim; }
-        else { width = width * maxDim / height; height = maxDim; }
-      }
-      const canvas = document.createElement('canvas');
-      canvas.width = width; canvas.height = height;
-      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-      resolve(canvas.toDataURL('image/jpeg', 0.85));
-    };
-    img.src = dataUrl;
-  });
+async function compressImage(fileOrDataUrl, maxDim) {
+  // 用 createImageBitmap 確保 EXIF 旋轉正確（橫式照片不會跑掉）
+  let bitmap;
+  try {
+    if (typeof fileOrDataUrl === 'string') {
+      const blob = await (await fetch(fileOrDataUrl)).blob();
+      bitmap = await createImageBitmap(blob, { imageOrientation: 'from-image' });
+    } else {
+      bitmap = await createImageBitmap(fileOrDataUrl, { imageOrientation: 'from-image' });
+    }
+  } catch (e) {
+    // fallback：用 Image
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) { height = height * maxDim / width; width = maxDim; }
+          else { width = width * maxDim / height; height = maxDim; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.85));
+      };
+      img.onerror = () => reject(new Error('image load failed'));
+      if (typeof fileOrDataUrl === 'string') img.src = fileOrDataUrl;
+      else { const r = new FileReader(); r.onload = () => (img.src = r.result); r.readAsDataURL(fileOrDataUrl); }
+    });
+  }
+  let { width, height } = bitmap;
+  if (width > maxDim || height > maxDim) {
+    if (width > height) { height = height * maxDim / width; width = maxDim; }
+    else { width = width * maxDim / height; height = maxDim; }
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = width; canvas.height = height;
+  canvas.getContext('2d').drawImage(bitmap, 0, 0, width, height);
+  return canvas.toDataURL('image/jpeg', 0.85);
 }
 
 // ====== Service worker + 強制更新 ======
-const APP_VERSION = 'v1.0.15';
+const APP_VERSION = 'v1.0.16';
 
 function clearCacheAndReload() {
   if (!confirm('清除快取並重新載入？')) return;
