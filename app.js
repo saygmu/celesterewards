@@ -138,6 +138,7 @@ function showModal({ title, content, center = false, onClose = null }) {
 // ====== PIN keypad ======
 function showPinPad({ title, length = 4, onComplete }) {
   let entered = '';
+  let busy = false;
   const wrap = document.createElement('div');
   wrap.innerHTML = `
     <div class="pin-display">
@@ -157,6 +158,7 @@ function showPinPad({ title, length = 4, onComplete }) {
     b.textContent = k;
     if (!k) b.style.visibility = 'hidden';
     b.onclick = async () => {
+      if (busy) return;
       if (k === '⌫') {
         entered = entered.slice(0, -1);
       } else if (k && entered.length < length) {
@@ -164,10 +166,16 @@ function showPinPad({ title, length = 4, onComplete }) {
       }
       updateDots();
       if (entered.length === length) {
+        busy = true;
         const ok = await onComplete(entered);
         if (ok === false) {
           shakeDots();
-          setTimeout(() => { entered = ''; updateDots(); }, 400);
+          setTimeout(() => { entered = ''; updateDots(); busy = false; }, 400);
+        } else {
+          // success path — reset for potential next stage
+          entered = '';
+          updateDots();
+          busy = false;
         }
       }
     };
@@ -260,10 +268,7 @@ async function authenticate(label = '請驗證身份') {
       if (ok) { modal.close(); finish(true); }
       else toast('Face ID 失敗，改用密碼吧', 'error');
     };
-
-    if (state.auth.webauthnCredId) {
-      tryWebAuthnVerify().then(ok => { if (ok) { modal.close(); finish(true); } });
-    }
+    // 不自動觸發 Face ID（iOS 必須使用者手勢；自動跳出會被擋）
   });
 }
 
@@ -825,7 +830,7 @@ function compressImage(dataUrl, maxDim) {
 }
 
 // ====== Service worker + 強制更新 ======
-const APP_VERSION = 'v1.0.1';
+const APP_VERSION = 'v1.0.2';
 
 function clearCacheAndReload() {
   if (!confirm('清除快取並重新載入？')) return;
