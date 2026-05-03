@@ -1,7 +1,7 @@
 // 喬喬集點屋 service worker — 簡單離線快取
-const VERSION = 'v1.0.0';
+const VERSION = 'v1.0.1';
 const CACHE = `celesterewards-${VERSION}`;
-const ASSETS = ['./', './index.html', './style.css?v=1', './app.js?v=1', './manifest.json', './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png'];
+const ASSETS = ['./', './index.html', './style.css?v=2', './app.js?v=2', './manifest.json', './icons/icon-192.png', './icons/icon-512.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS).catch(() => {})));

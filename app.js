@@ -825,7 +825,7 @@ function compressImage(dataUrl, maxDim) {
 }
 
 // ====== Service worker + 強制更新 ======
-const APP_VERSION = 'v1.0.0';
+const APP_VERSION = 'v1.0.1';
 
 function clearCacheAndReload() {
   if (!confirm('清除快取並重新載入？')) return;
