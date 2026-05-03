@@ -114,6 +114,7 @@ function confetti() {
 }
 
 // ====== Modal ======
+// close() 只移除 backdrop，不會觸發 onClose（onClose 只在使用者主動取消時才跑：按 × 或點背景）。
 function showModal({ title, content, center = false, onClose = null }) {
   const root = document.getElementById('modal-root');
   root.innerHTML = '';
@@ -128,11 +129,16 @@ function showModal({ title, content, center = false, onClose = null }) {
     <div class="modal-body"></div>
   `;
   modal.querySelector('.modal-body').appendChild(content);
-  modal.querySelector('.close').onclick = () => { backdrop.remove(); if (onClose) onClose(); };
+  let closed = false;
+  const dismiss = () => { if (closed) return; closed = true; backdrop.remove(); if (onClose) onClose(); };
+  modal.querySelector('.close').onclick = dismiss;
+  backdrop.onclick = (e) => { if (e.target === backdrop) dismiss(); };
   backdrop.appendChild(modal);
-  backdrop.onclick = (e) => { if (e.target === backdrop) { backdrop.remove(); if (onClose) onClose(); } };
   root.appendChild(backdrop);
-  return { close: () => { backdrop.remove(); if (onClose) onClose(); }, body: modal.querySelector('.modal-body') };
+  return {
+    close: () => { if (!closed) { closed = true; backdrop.remove(); } },
+    body: modal.querySelector('.modal-body'),
+  };
 }
 
 // ====== PIN keypad ======
@@ -830,7 +836,7 @@ function compressImage(dataUrl, maxDim) {
 }
 
 // ====== Service worker + 強制更新 ======
-const APP_VERSION = 'v1.0.2';
+const APP_VERSION = 'v1.0.3';
 
 function clearCacheAndReload() {
   if (!confirm('清除快取並重新載入？')) return;
