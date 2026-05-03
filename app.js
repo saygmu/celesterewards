@@ -913,7 +913,7 @@ function compressImage(dataUrl, maxDim) {
 }
 
 // ====== Service worker + 強制更新 ======
-const APP_VERSION = 'v1.0.10';
+const APP_VERSION = 'v1.0.11';
 
 function clearCacheAndReload() {
   if (!confirm('清除快取並重新載入？')) return;
@@ -947,7 +947,7 @@ function showUpdateBanner(newSw) {
   if (document.getElementById('update-banner')) return;
   const banner = document.createElement('div');
   banner.id = 'update-banner';
-  banner.style.cssText = 'position:fixed;top:16px;left:50%;transform:translateX(-50%);background:var(--pink);color:white;padding:10px 18px;border-radius:24px;font-weight:700;font-size:14px;z-index:3000;box-shadow:0 4px 16px rgba(255,143,168,0.4);cursor:pointer;border:2px solid var(--pink-deep);';
+  banner.style.cssText = 'position:fixed;top:calc(env(safe-area-inset-top, 0px) + 12px);left:50%;transform:translateX(-50%);background:var(--pink);color:white;padding:10px 18px;border-radius:24px;font-weight:700;font-size:14px;z-index:3000;box-shadow:0 4px 16px rgba(255,143,168,0.4);cursor:pointer;border:2px solid var(--pink-deep);';
   banner.innerHTML = '✨ 有新版本！點此更新';
   banner.onclick = () => {
     newSw.postMessage('SKIP_WAITING');
