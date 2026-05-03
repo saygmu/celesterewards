@@ -31,6 +31,12 @@ body.mei-view .app-header h1 { font-size: 1.7rem; }
 body.mei-view .empty p { font-size: 16px; }
 body.mei-view .history-label { font-size: 17px; }
 body.mei-view .chip { font-size: 15px; }
+/* 大人介面的元素（管理鈕 / 版本資訊）即使在妹妹頁也用粉圓 */
+body.mei-view .adult-ui,
+body.mei-view .adult-ui * {
+  font-family: 'Quicksand', 'jf-openhuninn', 'Noto Sans TC', sans-serif;
+  font-size: 14px;
+}
 
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 

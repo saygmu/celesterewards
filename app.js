@@ -98,7 +98,7 @@ async function syncPull() {
 // ====== Toast ======
 function toast(msg, type = '') {
   const el = document.createElement('div');
-  el.className = `toast ${type}`;
+  el.className = `toast adult-ui ${type}`;
   el.textContent = msg;
   document.getElementById('toast-root').appendChild(el);
   setTimeout(() => el.remove(), 2500);
@@ -451,8 +451,8 @@ function renderHome(root) {
       <button class="tab-btn" data-go="shop"><span class="emoji">🎁</span>商店</button>
       <button class="tab-btn" data-go="history"><span class="emoji">📖</span>紀錄</button>
     </div>
-    <button class="btn btn-block btn-ghost" id="admin-btn" style="margin-top:24px;">🔐 管理模式</button>
-    <div style="position:fixed;bottom:8px;left:0;right:0;text-align:center;font-size:11px;color:var(--muted);opacity:0.6;">
+    <button class="btn btn-block btn-ghost adult-ui" id="admin-btn" style="margin-top:24px;">🔐 管理模式</button>
+    <div class="adult-ui" style="position:fixed;bottom:8px;left:0;right:0;text-align:center;font-size:11px;color:var(--muted);opacity:0.6;">
       ${APP_VERSION} · <a href="#" onclick="clearCacheAndReload();return false;" style="color:inherit;">清除快取</a>
     </div>
   `;
@@ -958,7 +958,7 @@ async function compressImage(fileOrDataUrl, maxDim) {
 }
 
 // ====== Service worker + 強制更新 ======
-const APP_VERSION = 'v1.0.18';
+const APP_VERSION = 'v1.0.19';
 
 function clearCacheAndReload() {
   if (!confirm('清除快取並重新載入？')) return;
@@ -992,6 +992,7 @@ function showUpdateBanner(newSw) {
   if (document.getElementById('update-banner')) return;
   const banner = document.createElement('div');
   banner.id = 'update-banner';
+  banner.className = 'adult-ui';
   banner.style.cssText = 'position:fixed;top:calc(env(safe-area-inset-top, 0px) + 12px);left:50%;transform:translateX(-50%);background:var(--pink);color:white;padding:10px 18px;border-radius:24px;font-weight:700;font-size:14px;z-index:3000;box-shadow:0 4px 16px rgba(255,143,168,0.4);cursor:pointer;border:2px solid var(--pink-deep);';
   banner.innerHTML = '✨ 有新版本！點此更新';
   banner.onclick = () => {
