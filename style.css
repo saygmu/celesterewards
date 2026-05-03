@@ -352,7 +352,7 @@ html {
   border-radius: 14px;
   font-family: inherit;
   font-weight: 500;
-  font-size: 15px;
+  font-size: 16px; /* iOS 防自動放大：必須 ≥ 16px */
   background: var(--card);
   color: var(--text);
 }

@@ -929,7 +929,7 @@ function compressImage(dataUrl, maxDim) {
 }
 
 // ====== Service worker + 強制更新 ======
-const APP_VERSION = 'v1.0.14';
+const APP_VERSION = 'v1.0.15';
 
 function clearCacheAndReload() {
   if (!confirm('清除快取並重新載入？')) return;
