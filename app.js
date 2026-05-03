@@ -289,52 +289,121 @@ async function authenticate(label = '請驗證身份') {
 // ====== 初始設定（首次開啟） ======
 async function setupFirstTime() {
   return new Promise((resolve) => {
+    const wrap = document.createElement('div');
+    wrap.innerHTML = `
+      <p style="text-align:center;color:var(--muted);font-size:13px;margin-bottom:18px;">妳第一次開這個 app，選一個：</p>
+      <button class="btn btn-block btn-primary" id="b-new" style="margin-bottom:10px;">🌸 新建帳號</button>
+      <button class="btn btn-block btn-mint" id="b-restore">☁️ 從雲端還原（已用過）</button>
+    `;
+    const modal = showModal({ title: '歡迎來到喬喬集點屋', content: wrap, center: true });
+    wrap.querySelector('#b-new').onclick = () => {
+      modal.close();
+      newAccountFlow().then(resolve);
+    };
+    wrap.querySelector('#b-restore').onclick = () => {
+      modal.close();
+      restoreFlow().then((ok) => {
+        if (ok) resolve(true);
+        else setupFirstTime().then(resolve);
+      });
+    };
+  });
+}
+
+async function newAccountFlow() {
+  return new Promise((resolve) => {
     let stage = 'pin1';
     let firstPin = '';
-
     const wrap = document.createElement('div');
     const intro = document.createElement('p');
     intro.style.cssText = 'text-align:center;color:var(--muted);font-size:14px;margin-bottom:6px;';
-    intro.textContent = '請設定 4 位數密碼';
+    intro.textContent = '設定 4 位數密碼（任務 / 兌換時用）';
     wrap.appendChild(intro);
     const pad = showPinPad({
       length: 4,
       onComplete: async (entered) => {
         if (stage === 'pin1') {
-          firstPin = entered;
-          stage = 'pin2';
+          firstPin = entered; stage = 'pin2';
           intro.textContent = '再輸入一次確認';
           return true;
         }
         if (stage === 'pin2') {
           if (entered !== firstPin) {
-            intro.textContent = '兩次不一樣，再來一次';
+            intro.textContent = '兩次不一樣，重新輸入';
             stage = 'pin1';
             return false;
           }
           state.auth.pinHash = await sha256(entered);
           stage = 'syncpin';
-          intro.textContent = '設定 4 位數同步 PIN（跨裝置共用，可跟密碼一樣）';
+          intro.textContent = '設定 4 位數同步 PIN（跨裝置共用）';
           return true;
         }
         if (stage === 'syncpin') {
           pin = entered;
           localStorage.setItem(PIN_KEY, pin);
-          // try to register Face ID
           intro.textContent = '正在嘗試啟用 Face ID...';
           const credId = await tryWebAuthnRegister();
           if (credId) state.auth.webauthnCredId = credId;
           saveLocal();
           modal.close();
-          toast(credId ? '✨ Face ID 啟用成功' : '密碼設定完成（Face ID 不支援）', 'success');
+          toast(credId ? '✨ Face ID 啟用成功' : '帳號建立完成', 'success');
           resolve(true);
           return true;
         }
       },
     });
     wrap.appendChild(pad);
+    const modal = showModal({ title: '🌸 新建帳號', content: wrap, center: true });
+  });
+}
 
-    const modal = showModal({ title: '🌸 歡迎來到喬喬集點屋', content: wrap, center: true });
+async function restoreFlow() {
+  return new Promise((resolve) => {
+    const wrap = document.createElement('div');
+    const intro = document.createElement('p');
+    intro.style.cssText = 'text-align:center;color:var(--muted);font-size:14px;margin-bottom:6px;';
+    intro.textContent = '輸入妳之前用過的同步 PIN';
+    wrap.appendChild(intro);
+    const pad = showPinPad({
+      length: 4,
+      onComplete: async (entered) => {
+        intro.textContent = '從雲端載入中...';
+        try {
+          const res = await fetch(`${SYNC_BASE}/state`, { headers: { 'X-Pin': entered } });
+          if (!res.ok) throw new Error('not ok');
+          const data = await res.json();
+          if (!data || !data.state || !data.state.auth || !data.state.auth.pinHash) {
+            intro.textContent = '這個 PIN 沒有資料';
+            return false;
+          }
+          state = { ...defaultState(), ...data.state };
+          state.auth.webauthnCredId = null;
+          pin = entered;
+          localStorage.setItem(PIN_KEY, pin);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+          intro.textContent = '載入成功！嘗試啟用 Face ID...';
+          const credId = await tryWebAuthnRegister();
+          if (credId) {
+            state.auth.webauthnCredId = credId;
+            saveLocal();
+          }
+          modal.close();
+          toast('✨ 從雲端還原成功', 'success');
+          resolve(true);
+          return true;
+        } catch (e) {
+          intro.textContent = '雲端連不上或 PIN 錯誤';
+          return false;
+        }
+      },
+    });
+    wrap.appendChild(pad);
+    const modal = showModal({
+      title: '☁️ 從雲端還原',
+      content: wrap,
+      center: true,
+      onClose: () => resolve(false),
+    });
   });
 }
 
@@ -844,7 +913,7 @@ function compressImage(dataUrl, maxDim) {
 }
 
 // ====== Service worker + 強制更新 ======
-const APP_VERSION = 'v1.0.9';
+const APP_VERSION = 'v1.0.10';
 
 function clearCacheAndReload() {
   if (!confirm('清除快取並重新載入？')) return;
