@@ -424,6 +424,9 @@ function render() {
   const [page, sub] = currentRoute();
   const root = app();
   root.innerHTML = '';
+  // 妹妹看的頁面套上 mei-view（用注音圓體）；管理頁不套
+  const meiPages = new Set(['home', 'tasks', 'shop', 'history']);
+  document.body.classList.toggle('mei-view', meiPages.has(page));
   if (page === 'home') return renderHome(root);
   if (page === 'tasks') return renderTasks(root);
   if (page === 'shop') return renderShop(root);
@@ -955,7 +958,7 @@ async function compressImage(fileOrDataUrl, maxDim) {
 }
 
 // ====== Service worker + 強制更新 ======
-const APP_VERSION = 'v1.0.16';
+const APP_VERSION = 'v1.0.17';
 
 function clearCacheAndReload() {
   if (!confirm('清除快取並重新載入？')) return;

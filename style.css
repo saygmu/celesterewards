@@ -7,6 +7,17 @@
   font-weight: 400 700;
 }
 
+@font-face {
+  font-family: 'BpmfGenSenRounded';
+  src: url('https://cdn.jsdelivr.net/gh/aakwewaanaqa/afs-bpmf-fonts-woff2/BpmfGsr.woff2') format('woff2');
+  font-display: swap;
+}
+
+/* 妹妹看的頁面（home/tasks/shop/history）改用源泉注音圓體 */
+body.mei-view, body.mei-view * {
+  font-family: 'Quicksand', 'BpmfGenSenRounded', 'jf-openhuninn', 'Noto Sans TC', sans-serif;
+}
+
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
 :root {
