@@ -40,12 +40,16 @@ html, body {
 
 body {
   overflow-x: hidden;
+  overscroll-behavior-y: none;
   background: linear-gradient(180deg, var(--pink-light) 0%, var(--cream) 45%, var(--mint) 100%);
   background-attachment: fixed;
   background-size: 100% 100%;
   background-repeat: no-repeat;
 }
-html { background-color: var(--pink-light); }
+html {
+  background-color: var(--pink-light);
+  overscroll-behavior-y: none;
+}
 
 #app {
   max-width: 480px;
