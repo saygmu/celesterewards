@@ -361,6 +361,9 @@ function renderHome(root) {
       <button class="tab-btn" data-go="history"><span class="emoji">📖</span>紀錄</button>
     </div>
     <button class="btn btn-block btn-ghost" id="admin-btn" style="margin-top:24px;">🔐 管理模式</button>
+    <div style="position:fixed;bottom:8px;left:0;right:0;text-align:center;font-size:11px;color:var(--muted);opacity:0.6;">
+      ${APP_VERSION} · <a href="#" onclick="clearCacheAndReload();return false;" style="color:inherit;">清除快取</a>
+    </div>
   `;
   root.querySelectorAll('[data-go]').forEach(b => b.onclick = () => nav(b.dataset.go));
   root.querySelector('#admin-btn').onclick = async () => {
@@ -821,9 +824,48 @@ function compressImage(dataUrl, maxDim) {
   });
 }
 
-// ====== Service worker ======
+// ====== Service worker + 強制更新 ======
+const APP_VERSION = 'v1.0.0';
+
+function clearCacheAndReload() {
+  if (!confirm('清除快取並重新載入？')) return;
+  Promise.all([
+    'caches' in window ? caches.keys().then(ks => Promise.all(ks.map(k => caches.delete(k)))) : Promise.resolve(),
+    'serviceWorker' in navigator ? navigator.serviceWorker.getRegistrations().then(rs => Promise.all(rs.map(r => r.unregister()))) : Promise.resolve(),
+  ]).then(() => setTimeout(() => location.reload(true), 300));
+}
+window.clearCacheAndReload = clearCacheAndReload;
+
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js').catch(() => {});
+  navigator.serviceWorker.register('sw.js').then((reg) => {
+    // 偵測新版本：每次回到 app 時檢查
+    reg.update().catch(() => {});
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') reg.update().catch(() => {});
+    });
+    reg.addEventListener('updatefound', () => {
+      const sw = reg.installing;
+      if (!sw) return;
+      sw.addEventListener('statechange', () => {
+        if (sw.state === 'installed' && navigator.serviceWorker.controller) {
+          showUpdateBanner(sw);
+        }
+      });
+    });
+  }).catch(() => {});
+}
+
+function showUpdateBanner(newSw) {
+  if (document.getElementById('update-banner')) return;
+  const banner = document.createElement('div');
+  banner.id = 'update-banner';
+  banner.style.cssText = 'position:fixed;top:16px;left:50%;transform:translateX(-50%);background:var(--pink);color:white;padding:10px 18px;border-radius:24px;font-weight:700;font-size:14px;z-index:3000;box-shadow:0 4px 16px rgba(255,143,168,0.4);cursor:pointer;border:2px solid var(--pink-deep);';
+  banner.innerHTML = '✨ 有新版本！點此更新';
+  banner.onclick = () => {
+    newSw.postMessage('SKIP_WAITING');
+    setTimeout(() => location.reload(), 300);
+  };
+  document.body.appendChild(banner);
 }
 
 // ====== Boot ======

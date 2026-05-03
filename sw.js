@@ -1,11 +1,15 @@
 // 喬喬集點屋 service worker — 簡單離線快取
-const VERSION = 'v1';
+const VERSION = 'v1.0.0';
 const CACHE = `celesterewards-${VERSION}`;
 const ASSETS = ['./', './index.html', './style.css?v=1', './app.js?v=1', './manifest.json', './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS).catch(() => {})));
   self.skipWaiting();
+});
+
+self.addEventListener('message', (e) => {
+  if (e.data === 'SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('activate', (e) => {
