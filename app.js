@@ -646,7 +646,8 @@ function renderAdmin(root, sub) {
         <button class="btn btn-ghost" id="reset-pin">改</button>
       </div>
     </div>
-    <button class="btn btn-block btn-danger" id="reset-app" style="margin-top:24px;">完全重置</button>
+    <button class="btn btn-block btn-ghost" id="logout" style="margin-top:24px;">🚪 登出（資料留在雲端）</button>
+    <button class="btn btn-block btn-danger" id="wipe-all" style="margin-top:8px;font-size:13px;">⚠️ 清除雲端資料（不可復原）</button>
   `;
   root.querySelectorAll('[data-go]').forEach(b => b.onclick = () => nav(b.dataset.go));
   root.querySelector('[data-back]').onclick = () => nav('home');
@@ -660,9 +661,24 @@ function renderAdmin(root, sub) {
       syncPush();
     }
   };
-  root.querySelector('#reset-app').onclick = async () => {
-    if (!confirm('真的要清除所有資料嗎？此動作無法復原')) return;
-    if (await authenticate('確認重置') === false) return;
+  root.querySelector('#logout').onclick = async () => {
+    if (!confirm('登出後本機資料會清空，但雲端資料保留。下次開啟可選「從雲端還原」。')) return;
+    if (await authenticate('確認登出') === false) return;
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(PIN_KEY);
+    location.reload();
+  };
+  root.querySelector('#wipe-all').onclick = async () => {
+    if (!confirm('⚠️ 這會清掉本機 + 雲端的所有資料，無法復原。確定？')) return;
+    if (await authenticate('確認清除全部') === false) return;
+    // 推一個 null state 上去等同清空（worker 不支援 DELETE，直接寫空）
+    try {
+      if (pin) await fetch(`${SYNC_BASE}/state`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'X-Pin': pin },
+        body: JSON.stringify(defaultState()),
+      });
+    } catch {}
     localStorage.clear();
     location.reload();
   };
@@ -913,7 +929,7 @@ function compressImage(dataUrl, maxDim) {
 }
 
 // ====== Service worker + 強制更新 ======
-const APP_VERSION = 'v1.0.11';
+const APP_VERSION = 'v1.0.12';
 
 function clearCacheAndReload() {
   if (!confirm('清除快取並重新載入？')) return;
