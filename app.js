@@ -54,6 +54,14 @@ function dailyReset() {
   }
 }
 
+// 每 15 秒 pull + 切回前景時 pull（近即時跨裝置同步）
+let pullTimer = null;
+function startSyncPolling() {
+  if (pullTimer) return;
+  pullTimer = setInterval(() => { if (document.visibilityState === 'visible') syncPull(); }, 15000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') syncPull(); });
+}
+
 // ====== Sync ======
 function scheduleSync() {
   clearTimeout(syncTimer);
@@ -836,7 +844,7 @@ function compressImage(dataUrl, maxDim) {
 }
 
 // ====== Service worker + 強制更新 ======
-const APP_VERSION = 'v1.0.4';
+const APP_VERSION = 'v1.0.5';
 
 function clearCacheAndReload() {
   if (!confirm('清除快取並重新載入？')) return;
@@ -887,4 +895,5 @@ function showUpdateBanner(newSw) {
     await syncPull();
   }
   render();
+  startSyncPolling();
 })();
