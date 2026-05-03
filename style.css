@@ -40,10 +40,7 @@ html, body {
 
 body {
   overflow-x: hidden;
-  background-color: var(--bg);
-  background-image:
-    radial-gradient(circle at 20% 10%, var(--pink-light) 0%, transparent 50%),
-    radial-gradient(circle at 80% 95%, var(--mint) 0%, transparent 50%);
+  background: linear-gradient(180deg, var(--pink-light) 0%, var(--cream) 45%, var(--mint) 100%);
   background-attachment: fixed;
   background-size: 100% 100%;
   background-repeat: no-repeat;
