@@ -958,7 +958,7 @@ async function compressImage(fileOrDataUrl, maxDim) {
 }
 
 // ====== Service worker + 強制更新 ======
-const APP_VERSION = 'v1.0.17';
+const APP_VERSION = 'v1.0.18';
 
 function clearCacheAndReload() {
   if (!confirm('清除快取並重新載入？')) return;

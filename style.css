@@ -17,6 +17,20 @@
 body.mei-view, body.mei-view * {
   font-family: 'Quicksand', 'BpmfGenSenRounded', 'jf-openhuninn', 'Noto Sans TC', sans-serif;
 }
+/* 注音字旁的小字要看得清楚，整體放大 */
+body.mei-view { font-size: 19px; }
+body.mei-view .card-title,
+body.mei-view .action-card-head .card-title { font-size: 19px; }
+body.mei-view .card-sub { font-size: 14px; }
+body.mei-view .btn-go,
+body.mei-view .btn,
+body.mei-view .tab-btn { font-size: 18px; }
+body.mei-view .balance-label { font-size: 15px; }
+body.mei-view .balance-meta { font-size: 14px; }
+body.mei-view .app-header h1 { font-size: 1.7rem; }
+body.mei-view .empty p { font-size: 16px; }
+body.mei-view .history-label { font-size: 17px; }
+body.mei-view .chip { font-size: 15px; }
 
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
