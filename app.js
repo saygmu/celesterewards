@@ -618,22 +618,22 @@ function showSpinResult(t, value) {
 }
 
 // 獨立轉盤（不綁任務） - 管理用
-function renderAdminSpin(root) {
+function renderStandaloneSpin(root) {
   let min = 1, max = 10, reason = '';
   let spinning = false;
   function draw(state2) {
     root.innerHTML = `
       <div class="page-head">
-        <button class="back-btn" data-back>← 回管理</button>
-        <h2>🎰 獨立轉盤</h2>
+        <button class="back-btn" data-back>← 回家</button>
+        <h2>🎰 轉盤</h2>
         <div style="width:60px"></div>
       </div>
-      <div class="form-row row-2">
+      <div class="form-row row-2 adult-ui">
         <label>點數範圍</label>
         <input id="s-min" type="number" min="1" value="${min}" placeholder="最少">
         <input id="s-max" type="number" min="1" value="${max}" placeholder="最多">
       </div>
-      <div class="form-row">
+      <div class="form-row adult-ui">
         <label>原因（選填，會記在紀錄）</label>
         <input id="s-reason" value="${escapeAttr(reason)}" placeholder="例如：今天表現超棒">
       </div>
@@ -642,7 +642,7 @@ function renderAdminSpin(root) {
         <button id="spin-btn" class="btn-go" style="font-size:18px;padding:18px;">🎰 轉！</button>
       </div>
     `;
-    root.querySelector('[data-back]').onclick = () => nav('admin');
+    root.querySelector('[data-back]').onclick = () => nav('home');
     const minIn = root.querySelector('#s-min');
     const maxIn = root.querySelector('#s-max');
     const reasonIn = root.querySelector('#s-reason');
@@ -812,7 +812,7 @@ function renderAdmin(root, sub) {
   if (sub === 'tasks') return renderAdminTasks(root);
   if (sub === 'shop') return renderAdminShop(root);
   if (sub === 'balance') return renderAdminBalance(root);
-  if (sub === 'spin') return renderAdminSpin(root);
+  if (sub === 'spin') return renderStandaloneSpin(root);
   if (sub === 'history') return renderHistory(root, true);
   root.innerHTML = `
     <div class="page-head">
@@ -1172,7 +1172,7 @@ async function compressImage(fileOrDataUrl, maxDim) {
 }
 
 // ====== Service worker + 強制更新 ======
-const APP_VERSION = 'v1.0.23';
+const APP_VERSION = 'v1.0.24';
 
 function clearCacheAndReload() {
   if (!confirm('清除快取並重新載入？')) return;
