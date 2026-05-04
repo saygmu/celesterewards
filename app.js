@@ -123,13 +123,13 @@ function confetti() {
 
 // ====== Modal ======
 // close() 只移除 backdrop，不會觸發 onClose（onClose 只在使用者主動取消時才跑：按 × 或點背景）。
-function showModal({ title, content, center = false, onClose = null }) {
+function showModal({ title, content, center = false, onClose = null, className = '' }) {
   const root = document.getElementById('modal-root');
   root.innerHTML = '';
   const backdrop = document.createElement('div');
   backdrop.className = 'modal-backdrop' + (center ? ' center' : '');
   const modal = document.createElement('div');
-  modal.className = 'modal';
+  modal.className = 'modal' + (className ? ' ' + className : '');
   modal.style.position = 'relative';
   modal.innerHTML = `
     <button class="close" aria-label="close">×</button>
@@ -247,6 +247,7 @@ async function authenticate(label = '請驗證身份') {
     const finish = (ok) => { if (resolved) return; resolved = true; resolve(ok); };
 
     const wrap = document.createElement('div');
+    wrap.className = 'adult-ui';
     wrap.innerHTML = `
       <p style="text-align:center;color:var(--muted);font-size:13px;margin-bottom:16px;">${label}</p>
       <button class="btn btn-primary btn-block" id="faceid-btn" style="margin-bottom:12px;">
@@ -272,6 +273,7 @@ async function authenticate(label = '請驗證身份') {
       title: '🔐 驗證',
       content: wrap,
       center: true,
+      className: 'adult-ui',
       onClose: () => finish(false),
     });
 
@@ -295,7 +297,7 @@ async function setupFirstTime() {
       <button class="btn btn-block btn-primary" id="b-new" style="margin-bottom:10px;">🌸 新建帳號</button>
       <button class="btn btn-block btn-mint" id="b-restore">☁️ 從雲端還原（已用過）</button>
     `;
-    const modal = showModal({ title: '歡迎來到喬喬集點屋', content: wrap, center: true });
+    const modal = showModal({ title: '歡迎來到喬喬集點屋', content: wrap, center: true, className: 'adult-ui' });
     wrap.querySelector('#b-new').onclick = () => {
       modal.close();
       newAccountFlow().then(resolve);
@@ -353,7 +355,7 @@ async function newAccountFlow() {
       },
     });
     wrap.appendChild(pad);
-    const modal = showModal({ title: '🌸 新建帳號', content: wrap, center: true });
+    const modal = showModal({ title: '🌸 新建帳號', content: wrap, center: true, className: 'adult-ui' });
   });
 }
 
@@ -402,6 +404,7 @@ async function restoreFlow() {
       title: '☁️ 從雲端還原',
       content: wrap,
       center: true,
+      className: 'adult-ui',
       onClose: () => resolve(false),
     });
   });
@@ -750,7 +753,7 @@ function taskForm(t) {
   form.querySelector('#f-mode').onchange = updateLimitVisibility;
   updateLimitVisibility();
 
-  const modal = showModal({ title: editing ? '編輯任務' : '新增任務', content: form });
+  const modal = showModal({ title: editing ? '編輯任務' : '新增任務', content: form, className: 'adult-ui' });
 
   form.querySelector('#save').onclick = () => {
     const name = form.querySelector('#f-name').value.trim();
@@ -828,7 +831,7 @@ function giftForm(g) {
   `;
   form.querySelector('#f-status').value = data.status === 'deleted' ? 'disabled' : data.status;
 
-  const modal = showModal({ title: editing ? '編輯獎品' : '新增獎品', content: form });
+  const modal = showModal({ title: editing ? '編輯獎品' : '新增獎品', content: form, className: 'adult-ui' });
 
   form.querySelector('#f-image').onchange = async (e) => {
     const file = e.target.files[0];
@@ -958,7 +961,7 @@ async function compressImage(fileOrDataUrl, maxDim) {
 }
 
 // ====== Service worker + 強制更新 ======
-const APP_VERSION = 'v1.0.19';
+const APP_VERSION = 'v1.0.20';
 
 function clearCacheAndReload() {
   if (!confirm('清除快取並重新載入？')) return;
