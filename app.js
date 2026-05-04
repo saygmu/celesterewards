@@ -428,12 +428,13 @@ function render() {
   const root = app();
   root.innerHTML = '';
   // 妹妹看的頁面套上 mei-view（用注音圓體）；管理頁不套
-  const meiPages = new Set(['home', 'tasks', 'shop', 'history']);
+  const meiPages = new Set(['home', 'tasks', 'shop', 'history', 'spin']);
   document.body.classList.toggle('mei-view', meiPages.has(page));
   if (page === 'home') return renderHome(root);
   if (page === 'tasks') return renderTasks(root);
   if (page === 'shop') return renderShop(root);
   if (page === 'history') return renderHistory(root);
+  if (page === 'spin') return renderSpin(root, sub);
   if (page === 'admin') return renderAdmin(root, sub);
   nav('home');
 }
@@ -486,6 +487,7 @@ function renderTasks(root) {
         : t.limitMode === 'daily' ? `今天還能做 ${t.limitN - t.doneToday} 次`
         : t.limitMode === 'total' ? `還剩 ${t.limitN - t.doneCount} 次`
         : `無限次`;
+      const hasSpinner = t.spinner && t.spinner.enabled;
       const card = document.createElement('div');
       card.className = 'action-card';
       card.innerHTML = `
@@ -497,9 +499,11 @@ function renderTasks(root) {
           </div>
           <div class="card-points">+${t.points}</div>
         </div>
-        <button class="btn-go" ${maxed ? 'disabled style="opacity:0.45"' : ''}>${maxed ? '今天先到這～' : '我完成了！ 🎉'}</button>
+        <button class="btn-go fixed-btn" ${maxed ? 'disabled style="opacity:0.45"' : ''}>${maxed ? '今天先到這～' : `我完成了！+${t.points} 🎉`}</button>
+        ${hasSpinner && !maxed ? `<button class="btn-go mint spin-btn">🎰 碰運氣（${t.spinner.min}～${t.spinner.max} 點）</button>` : ''}
       `;
-      if (!maxed) card.querySelector('.btn-go').onclick = () => completeTask(t.id);
+      if (!maxed) card.querySelector('.fixed-btn').onclick = () => completeTask(t.id);
+      if (hasSpinner && !maxed) card.querySelector('.spin-btn').onclick = () => nav('spin/' + t.id);
       root.appendChild(card);
     });
   }
@@ -512,21 +516,103 @@ async function completeTask(id) {
   if (t.limitMode === 'daily' && t.doneToday >= t.limitN) return toast('今天已達上限', 'error');
   if (t.limitMode === 'total' && t.doneCount >= t.limitN) return toast('累積已達上限', 'error');
   if (await authenticate(`確認完成「${t.name}」+${t.points} 點`) === false) return;
-  // 加點
-  state.balance.current += t.points;
-  state.balance.lifetime += t.points;
-  state.balance.today += t.points;
+  applyTaskPoints(t, t.points, '');
+  toast(`+${t.points} 點～太棒了！`, 'success');
+}
+
+function applyTaskPoints(t, points, reason) {
+  state.balance.current += points;
+  state.balance.lifetime += points;
+  state.balance.today += points;
   t.doneCount++;
   if (t.limitMode === 'daily') t.doneToday++;
-  // 自動消失
   if (t.limitMode === 'total' && t.doneCount >= t.limitN) t.archived = true;
   state.history.unshift({
-    id: uid(), ts: Date.now(), type: 'task', delta: t.points, label: t.name, reason: '',
+    id: uid(), ts: Date.now(), type: 'task', delta: points, label: t.name, reason,
   });
   saveLocal();
   confetti();
-  toast(`+${t.points} 點～太棒了！`, 'success');
   render();
+}
+
+function renderSpin(root, taskId) {
+  const t = state.tasks.find(x => x.id === taskId);
+  if (!t || !t.spinner || !t.spinner.enabled) {
+    nav('tasks');
+    return;
+  }
+  const dailyMaxed = t.limitMode === 'daily' && t.doneToday >= t.limitN;
+  const totalMaxed = t.limitMode === 'total' && t.doneCount >= t.limitN;
+  if (dailyMaxed || totalMaxed) { toast('已達上限', 'error'); nav('tasks'); return; }
+
+  const min = t.spinner.min, max = t.spinner.max;
+  root.innerHTML = `
+    <div class="page-head">
+      <button class="back-btn" data-back>← 取消</button>
+      <h2>🎰 碰運氣</h2>
+      <div style="width:60px"></div>
+    </div>
+    <div class="action-card" style="text-align:center;padding:32px 20px;">
+      <div style="font-size:14px;color:var(--muted);margin-bottom:8px;">${escapeHtml(t.name)}</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:24px;">範圍 ${min} ～ ${max} 點</div>
+      <div id="spin-display" style="font-family:'Quicksand',sans-serif;font-weight:700;font-size:7rem;line-height:1;color:var(--pink-deep);margin:24px 0;transition:transform .2s;">?</div>
+      <button id="spin-btn" class="btn-go" style="font-size:18px;padding:18px;">🎰 轉！</button>
+    </div>
+  `;
+  root.querySelector('[data-back]').onclick = () => nav('tasks');
+  const display = root.querySelector('#spin-display');
+  const btn = root.querySelector('#spin-btn');
+  let spinning = false;
+
+  btn.onclick = async () => {
+    if (spinning) return;
+    if (await authenticate(`確認轉「${t.name}」的轉盤`) === false) return;
+    spinning = true;
+    btn.disabled = true;
+    btn.style.opacity = 0.5;
+    btn.textContent = '轉動中...';
+    const finalValue = Math.floor(Math.random() * (max - min + 1)) + min;
+    // 動畫：快速跳數字 → 漸慢 → 停在 finalValue
+    const totalDuration = 2400;
+    const start = Date.now();
+    function tick() {
+      const elapsed = Date.now() - start;
+      const progress = Math.min(1, elapsed / totalDuration);
+      // ease-out 速度
+      const interval = 50 + progress * progress * 350;
+      if (elapsed < totalDuration) {
+        display.textContent = Math.floor(Math.random() * (max - min + 1)) + min;
+        display.style.transform = `scale(${1 + Math.sin(elapsed/80)*0.04})`;
+        setTimeout(tick, interval);
+      } else {
+        display.textContent = finalValue;
+        display.style.transform = 'scale(1.2)';
+        setTimeout(() => { display.style.transform = 'scale(1)'; }, 250);
+        showSpinResult(t, finalValue);
+      }
+    }
+    tick();
+  };
+}
+
+function showSpinResult(t, value) {
+  const wrap = document.createElement('div');
+  wrap.innerHTML = `
+    <p style="text-align:center;font-size:1.2rem;margin-bottom:12px;">
+      🎉 妳轉到了 <b style="color:var(--pink-deep);font-family:'Quicksand',sans-serif;font-size:2rem;">+${value}</b> 點！
+    </p>
+    <p style="text-align:center;color:var(--muted);font-size:13px;margin-bottom:20px;">
+      （由「${escapeHtml(t.name)}」轉盤轉出）
+    </p>
+    <button class="btn btn-block btn-primary" id="claim">收下 ✨</button>
+  `;
+  const modal = showModal({ title: '🎰 結果', content: wrap, center: true });
+  wrap.querySelector('#claim').onclick = () => {
+    applyTaskPoints(t, value, '由轉盤轉出');
+    toast(`+${value} 點 收下啦！`, 'success');
+    modal.close();
+    nav('tasks');
+  };
 }
 
 function renderShop(root) {
@@ -709,7 +795,7 @@ function renderAdminTasks(root) {
         <div class="card-icon">${t.emoji || '⭐'}</div>
         <div class="card-body">
           <div class="card-title">${escapeHtml(t.name)} ${status}</div>
-          <div class="card-sub">+${t.points} 點 · ${describeLimit(t)}</div>
+          <div class="card-sub">+${t.points} 點 · ${describeLimit(t)}${t.spinner && t.spinner.enabled ? ` · 🎰 ${t.spinner.min}~${t.spinner.max}` : ''}</div>
         </div>
         <button class="btn btn-ghost" data-edit="${t.id}">編輯</button>
       </div>
@@ -729,12 +815,13 @@ function describeLimit(t) {
 
 function taskForm(t) {
   const editing = !!t;
-  const data = t || { id: uid(), name: '', emoji: '⭐', points: 1, limitMode: 'daily', limitN: 1, doneCount: 0, doneToday: 0, archived: false };
+  const data = t || { id: uid(), name: '', emoji: '⭐', points: 1, limitMode: 'daily', limitN: 1, doneCount: 0, doneToday: 0, archived: false, spinner: null };
+  if (!data.spinner) data.spinner = { enabled: false, min: 1, max: 10 };
   const form = document.createElement('div');
   form.innerHTML = `
     <div class="form-row"><label>名稱</label><input id="f-name" value="${escapeAttr(data.name)}" placeholder="例如：整理書桌"></div>
     <div class="form-row"><label>表情</label><input id="f-emoji" value="${escapeAttr(data.emoji)}" placeholder="⭐" maxlength="2"></div>
-    <div class="form-row"><label>每次得幾點</label><input id="f-points" type="number" min="1" value="${data.points}"></div>
+    <div class="form-row"><label>每次得幾點（固定）</label><input id="f-points" type="number" min="1" value="${data.points}"></div>
     <div class="form-row"><label>上限模式</label>
       <select id="f-mode">
         <option value="daily">每天 N 次（每天重置）</option>
@@ -743,6 +830,20 @@ function taskForm(t) {
       </select>
     </div>
     <div class="form-row" id="limitn-row"><label>N =</label><input id="f-n" type="number" min="1" value="${data.limitN}"></div>
+
+    <div class="form-row" style="border-top:1px dashed var(--border);padding-top:14px;margin-top:14px;">
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+        <input id="f-spin-on" type="checkbox" ${data.spinner.enabled ? 'checked' : ''} style="width:20px;height:20px;accent-color:var(--pink-deep);">
+        <span>🎰 加上「碰運氣轉盤」選項</span>
+      </label>
+      <div style="font-size:12px;color:var(--muted);margin-top:4px;">開啟後妹妹完成這個任務時可以挑「拿固定點」或「轉看看」</div>
+    </div>
+    <div class="form-row row-2" id="spin-range-row">
+      <label>轉盤點數範圍</label>
+      <input id="f-spin-min" type="number" min="1" value="${data.spinner.min}" placeholder="最少">
+      <input id="f-spin-max" type="number" min="1" value="${data.spinner.max}" placeholder="最多">
+    </div>
+
     <button class="btn btn-block btn-primary" id="save">${editing ? '儲存' : '建立'}</button>
     ${editing ? '<button class="btn btn-block btn-danger" id="del" style="margin-top:8px;">刪除</button>' : ''}
   `;
@@ -752,6 +853,12 @@ function taskForm(t) {
   };
   form.querySelector('#f-mode').onchange = updateLimitVisibility;
   updateLimitVisibility();
+
+  const updateSpinVisibility = () => {
+    form.querySelector('#spin-range-row').style.display = form.querySelector('#f-spin-on').checked ? 'grid' : 'none';
+  };
+  form.querySelector('#f-spin-on').onchange = updateSpinVisibility;
+  updateSpinVisibility();
 
   const modal = showModal({ title: editing ? '編輯任務' : '新增任務', content: form, className: 'adult-ui' });
 
@@ -763,7 +870,13 @@ function taskForm(t) {
     data.points = Math.max(1, parseInt(form.querySelector('#f-points').value) || 1);
     data.limitMode = form.querySelector('#f-mode').value;
     data.limitN = data.limitMode === 'infinite' ? 0 : Math.max(1, parseInt(form.querySelector('#f-n').value) || 1);
-    if (data.limitMode === 'total' && data.doneCount >= data.limitN) data.archived = false; // 編輯後可能解除消失
+    if (data.limitMode === 'total' && data.doneCount >= data.limitN) data.archived = false;
+
+    const spinOn = form.querySelector('#f-spin-on').checked;
+    const sMin = Math.max(1, parseInt(form.querySelector('#f-spin-min').value) || 1);
+    const sMax = Math.max(sMin, parseInt(form.querySelector('#f-spin-max').value) || sMin);
+    data.spinner = { enabled: spinOn, min: sMin, max: sMax };
+
     if (!editing) state.tasks.push(data);
     saveLocal();
     modal.close();
@@ -961,7 +1074,7 @@ async function compressImage(fileOrDataUrl, maxDim) {
 }
 
 // ====== Service worker + 強制更新 ======
-const APP_VERSION = 'v1.0.20';
+const APP_VERSION = 'v1.0.21';
 
 function clearCacheAndReload() {
   if (!confirm('清除快取並重新載入？')) return;
