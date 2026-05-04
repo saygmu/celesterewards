@@ -437,9 +437,9 @@ html {
 .key-btn.special {
   background: transparent;
   border-color: transparent;
-  font-size: 14px;
+  font-size: 26px;
   color: var(--muted);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 /* Toast */
