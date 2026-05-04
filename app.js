@@ -608,11 +608,104 @@ function showSpinResult(t, value) {
   `;
   const modal = showModal({ title: '🎰 結果', content: wrap, center: true });
   wrap.querySelector('#claim').onclick = () => {
-    applyTaskPoints(t, value, '由轉盤轉出');
+    applyTaskPoints(t, value, `由轉盤轉出（${t.name}）`);
     toast(`+${value} 點 收下啦！`, 'success');
     modal.close();
     nav('tasks');
   };
+}
+
+// 獨立轉盤（不綁任務） - 管理用
+function renderAdminSpin(root) {
+  let min = 1, max = 10, reason = '';
+  let spinning = false;
+  function draw(state2) {
+    root.innerHTML = `
+      <div class="page-head">
+        <button class="back-btn" data-back>← 回管理</button>
+        <h2>🎰 獨立轉盤</h2>
+        <div style="width:60px"></div>
+      </div>
+      <div class="form-row row-2">
+        <label>點數範圍</label>
+        <input id="s-min" type="number" min="1" value="${min}" placeholder="最少">
+        <input id="s-max" type="number" min="1" value="${max}" placeholder="最多">
+      </div>
+      <div class="form-row">
+        <label>原因（選填，會記在紀錄）</label>
+        <input id="s-reason" value="${escapeAttr(reason)}" placeholder="例如：今天表現超棒">
+      </div>
+      <div class="action-card" style="text-align:center;padding:32px 20px;">
+        <div id="spin-display" style="font-family:'Quicksand',sans-serif;font-weight:700;font-size:7rem;line-height:1;color:var(--pink-deep);margin:24px 0;transition:transform .2s;">${state2 || '?'}</div>
+        <button id="spin-btn" class="btn-go" style="font-size:18px;padding:18px;">🎰 轉！</button>
+      </div>
+    `;
+    root.querySelector('[data-back]').onclick = () => nav('admin');
+    const minIn = root.querySelector('#s-min');
+    const maxIn = root.querySelector('#s-max');
+    const reasonIn = root.querySelector('#s-reason');
+    minIn.oninput = () => { min = Math.max(1, parseInt(minIn.value) || 1); };
+    maxIn.oninput = () => { max = Math.max(min, parseInt(maxIn.value) || min); };
+    reasonIn.oninput = () => { reason = reasonIn.value; };
+
+    const display = root.querySelector('#spin-display');
+    const btn = root.querySelector('#spin-btn');
+
+    btn.onclick = async () => {
+      if (spinning) return;
+      const a = Math.max(1, parseInt(minIn.value) || 1);
+      const b = Math.max(a, parseInt(maxIn.value) || a);
+      const r = reasonIn.value.trim();
+      if (await authenticate('確認轉動轉盤') === false) return;
+      spinning = true;
+      btn.disabled = true; btn.style.opacity = 0.5; btn.textContent = '轉動中...';
+      const finalValue = Math.floor(Math.random() * (b - a + 1)) + a;
+      const totalDuration = 2400;
+      const start = Date.now();
+      function tick() {
+        const elapsed = Date.now() - start;
+        const interval = 50 + (elapsed/totalDuration)**2 * 350;
+        if (elapsed < totalDuration) {
+          display.textContent = Math.floor(Math.random() * (b - a + 1)) + a;
+          display.style.transform = `scale(${1 + Math.sin(elapsed/80)*0.04})`;
+          setTimeout(tick, interval);
+        } else {
+          display.textContent = finalValue;
+          display.style.transform = 'scale(1.2)';
+          setTimeout(() => { display.style.transform = 'scale(1)'; }, 250);
+          showAdminSpinResult(finalValue, r || '由轉盤轉出');
+        }
+      }
+      tick();
+    };
+  }
+  draw();
+}
+
+function showAdminSpinResult(value, reason) {
+  const wrap = document.createElement('div');
+  wrap.innerHTML = `
+    <p style="text-align:center;font-size:1.2rem;margin-bottom:12px;">
+      🎉 轉到了 <b style="color:var(--pink-deep);font-family:'Quicksand',sans-serif;font-size:2rem;">+${value}</b> 點
+    </p>
+    <p style="text-align:center;color:var(--muted);font-size:13px;margin-bottom:20px;">原因：${escapeHtml(reason)}</p>
+    <button class="btn btn-block btn-primary" id="claim">記下這筆 ✨</button>
+    <button class="btn btn-block btn-ghost" id="cancel" style="margin-top:8px;">不要這次（取消）</button>
+  `;
+  const modal = showModal({ title: '🎰 結果', content: wrap, center: true, className: 'adult-ui' });
+  wrap.querySelector('#claim').onclick = () => {
+    state.balance.current += value;
+    state.balance.lifetime += value;
+    state.balance.today += value;
+    state.history.unshift({
+      id: uid(), ts: Date.now(), type: 'manual', delta: value, label: '轉盤獎勵', reason,
+    });
+    saveLocal();
+    toast(`+${value} 已加上`, 'success');
+    modal.close();
+    render();
+  };
+  wrap.querySelector('#cancel').onclick = () => modal.close();
 }
 
 function renderShop(root) {
@@ -716,6 +809,7 @@ function renderAdmin(root, sub) {
   if (sub === 'tasks') return renderAdminTasks(root);
   if (sub === 'shop') return renderAdminShop(root);
   if (sub === 'balance') return renderAdminBalance(root);
+  if (sub === 'spin') return renderAdminSpin(root);
   root.innerHTML = `
     <div class="page-head">
       <button class="back-btn" data-back>← 回家</button>
@@ -726,6 +820,7 @@ function renderAdmin(root, sub) {
       <button class="admin-tile" data-go="admin/tasks"><span class="emoji">📝</span>任務管理</button>
       <button class="admin-tile" data-go="admin/shop"><span class="emoji">🎁</span>商店管理</button>
       <button class="admin-tile" data-go="admin/balance"><span class="emoji">💰</span>手動加扣</button>
+      <button class="admin-tile" data-go="admin/spin"><span class="emoji">🎰</span>獨立轉盤</button>
       <button class="admin-tile" data-go="history"><span class="emoji">📖</span>紀錄</button>
     </div>
     <div class="card" style="margin-top:16px;">
@@ -1074,7 +1169,7 @@ async function compressImage(fileOrDataUrl, maxDim) {
 }
 
 // ====== Service worker + 強制更新 ======
-const APP_VERSION = 'v1.0.21';
+const APP_VERSION = 'v1.0.22';
 
 function clearCacheAndReload() {
   if (!confirm('清除快取並重新載入？')) return;
