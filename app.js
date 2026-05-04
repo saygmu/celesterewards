@@ -798,7 +798,19 @@ function renderHistory(root, fromAdmin = false) {
             <div class="history-meta">${time}${h.reason ? ' · ' + escapeHtml(h.reason) : ''}</div>
           </div>
           <div class="history-delta ${h.delta > 0 ? 'plus' : 'minus'}">${h.delta > 0 ? '+' : ''}${h.delta}</div>
+          ${fromAdmin ? `<button class="btn btn-ghost" data-del="${h.id}" style="padding:6px 10px;font-size:12px;margin-left:8px;">🗑️</button>` : ''}
         `;
+        if (fromAdmin) {
+          div.querySelector('[data-del]').onclick = async () => {
+            const reverseHint = h.delta !== 0 ? `\n（這筆當時對餘額影響 ${h.delta > 0 ? '+' : ''}${h.delta}，刪除不會自動回沖；要回沖請去手動加扣）` : '';
+            if (!confirm(`刪除這筆紀錄？${reverseHint}`)) return;
+            if (await authenticate('確認刪除紀錄') === false) return;
+            state.history = state.history.filter(x => x.id !== h.id);
+            saveLocal();
+            toast('已刪除', 'success');
+            draw();
+          };
+        }
         list.appendChild(div);
       });
     }
@@ -1172,7 +1184,7 @@ async function compressImage(fileOrDataUrl, maxDim) {
 }
 
 // ====== Service worker + 強制更新 ======
-const APP_VERSION = 'v1.0.24';
+const APP_VERSION = 'v1.0.25';
 
 function clearCacheAndReload() {
   if (!confirm('清除快取並重新載入？')) return;
