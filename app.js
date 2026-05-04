@@ -482,11 +482,15 @@ function renderTasks(root) {
     visible.forEach(t => {
       const dailyMaxed = t.limitMode === 'daily' && t.doneToday >= t.limitN;
       const totalMaxed = t.limitMode === 'total' && t.doneCount >= t.limitN;
-      const maxed = dailyMaxed || totalMaxed;
+      const periodicWait = t.limitMode === 'periodic' ? periodicDaysLeft(t) : 0;
+      const periodicLocked = periodicWait > 0;
+      const maxed = dailyMaxed || totalMaxed || periodicLocked;
       const remaining = dailyMaxed ? '今天已做完啦 ✅'
         : totalMaxed ? '已完成全部 🎯'
+        : periodicLocked ? `再 ${periodicWait} 天才能做 ⏳`
         : t.limitMode === 'daily' ? `今天還能做 ${t.limitN - t.doneToday} 次`
         : t.limitMode === 'total' ? `還剩 ${t.limitN - t.doneCount} 次`
+        : t.limitMode === 'periodic' ? `每 ${t.limitN} 天 1 次（可以做）`
         : `無限次`;
       const hasSpinner = t.spinner && t.spinner.enabled;
       const card = document.createElement('div');
@@ -516,6 +520,7 @@ async function completeTask(id) {
   if (!t) return;
   if (t.limitMode === 'daily' && t.doneToday >= t.limitN) return toast('今天已達上限', 'error');
   if (t.limitMode === 'total' && t.doneCount >= t.limitN) return toast('累積已達上限', 'error');
+  if (t.limitMode === 'periodic' && periodicDaysLeft(t) > 0) return toast('還沒到下次可做的日子', 'error');
   if (await authenticate(`確認完成「${t.name}」+${t.points} 點`) === false) return;
   applyTaskPoints(t, t.points, '');
   toast(`+${t.points} 點～太棒了！`, 'success');
@@ -528,6 +533,11 @@ function applyTaskPoints(t, points, reason) {
   t.doneCount++;
   if (t.limitMode === 'daily') t.doneToday++;
   if (t.limitMode === 'total' && t.doneCount >= t.limitN) t.archived = true;
+  if (t.limitMode === 'periodic') {
+    const next = new Date(todayStr() + 'T00:00:00+08:00');
+    next.setDate(next.getDate() + (t.limitN || 1));
+    t.nextAvailableDate = next.toLocaleDateString('sv-SE', { timeZone: 'Asia/Taipei' });
+  }
   state.history.unshift({
     id: uid(), ts: Date.now(), type: 'task', delta: points, label: t.name, reason,
   });
@@ -545,7 +555,8 @@ function renderSpin(root, taskId) {
   }
   const dailyMaxed = t.limitMode === 'daily' && t.doneToday >= t.limitN;
   const totalMaxed = t.limitMode === 'total' && t.doneCount >= t.limitN;
-  if (dailyMaxed || totalMaxed) { toast('已達上限', 'error'); nav('tasks'); return; }
+  const periodicLocked = t.limitMode === 'periodic' && periodicDaysLeft(t) > 0;
+  if (dailyMaxed || totalMaxed || periodicLocked) { toast('還不能做', 'error'); nav('tasks'); return; }
 
   const min = t.spinner.min, max = t.spinner.max;
   root.innerHTML = `
@@ -927,7 +938,20 @@ function renderAdminTasks(root) {
 function describeLimit(t) {
   if (t.limitMode === 'daily') return `每天 ${t.limitN} 次（已 ${t.doneToday}）`;
   if (t.limitMode === 'total') return `累積 ${t.limitN} 次（已 ${t.doneCount}）`;
+  if (t.limitMode === 'periodic') {
+    const wait = periodicDaysLeft(t);
+    return wait > 0 ? `每 ${t.limitN} 天 1 次（再 ${wait} 天可做）` : `每 ${t.limitN} 天 1 次（可以做）`;
+  }
   return '無限次';
+}
+
+function periodicDaysLeft(t) {
+  if (!t.nextAvailableDate) return 0;
+  const today = todayStr();
+  if (t.nextAvailableDate <= today) return 0;
+  const a = new Date(today + 'T00:00:00+08:00');
+  const b = new Date(t.nextAvailableDate + 'T00:00:00+08:00');
+  return Math.ceil((b - a) / 86400000);
 }
 
 function taskForm(t) {
@@ -942,11 +966,12 @@ function taskForm(t) {
     <div class="form-row"><label>上限模式</label>
       <select id="f-mode">
         <option value="daily">每天 N 次（每天重置）</option>
+        <option value="periodic">每 N 天 1 次（做完隔 N 天才能再做）</option>
         <option value="total">累積 N 次後消失</option>
         <option value="infinite">無限次</option>
       </select>
     </div>
-    <div class="form-row" id="limitn-row"><label>N =</label><input id="f-n" type="number" min="1" value="${data.limitN}"></div>
+    <div class="form-row" id="limitn-row"><label id="limitn-label">N =</label><input id="f-n" type="number" min="1" value="${data.limitN}"></div>
 
     <div class="form-row" style="border-top:1px dashed var(--border);padding-top:14px;margin-top:14px;">
       <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
@@ -966,7 +991,9 @@ function taskForm(t) {
   `;
   form.querySelector('#f-mode').value = data.limitMode;
   const updateLimitVisibility = () => {
-    form.querySelector('#limitn-row').style.display = form.querySelector('#f-mode').value === 'infinite' ? 'none' : 'block';
+    const m = form.querySelector('#f-mode').value;
+    form.querySelector('#limitn-row').style.display = m === 'infinite' ? 'none' : 'block';
+    form.querySelector('#limitn-label').textContent = m === 'periodic' ? '每幾天 1 次' : 'N =';
   };
   form.querySelector('#f-mode').onchange = updateLimitVisibility;
   updateLimitVisibility();
@@ -1191,7 +1218,7 @@ async function compressImage(fileOrDataUrl, maxDim) {
 }
 
 // ====== Service worker + 強制更新 ======
-const APP_VERSION = 'v1.0.27';
+const APP_VERSION = 'v1.0.28';
 
 function clearCacheAndReload() {
   if (!confirm('清除快取並重新載入？')) return;
