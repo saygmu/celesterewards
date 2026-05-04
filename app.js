@@ -802,12 +802,19 @@ function renderHistory(root, fromAdmin = false) {
         `;
         if (fromAdmin) {
           div.querySelector('[data-del]').onclick = async () => {
-            const reverseHint = h.delta !== 0 ? `\n（這筆當時對餘額影響 ${h.delta > 0 ? '+' : ''}${h.delta}，刪除不會自動回沖；要回沖請去手動加扣）` : '';
-            if (!confirm(`刪除這筆紀錄？${reverseHint}`)) return;
+            const sign = h.delta > 0 ? '+' : '';
+            if (!confirm(`刪除這筆紀錄？\n（會回沖餘額 ${sign}${h.delta} → 變成 ${sign === '+' ? '扣' : '加'} ${Math.abs(h.delta)} 點）`)) return;
             if (await authenticate('確認刪除紀錄') === false) return;
+            // 回沖餘額
+            state.balance.current = Math.max(0, state.balance.current - h.delta);
+            if (h.delta > 0) {
+              state.balance.lifetime = Math.max(0, state.balance.lifetime - h.delta);
+              const sameDay = new Date(h.ts).toLocaleDateString('sv-SE', { timeZone: 'Asia/Taipei' }) === todayStr();
+              if (sameDay) state.balance.today = Math.max(0, state.balance.today - h.delta);
+            }
             state.history = state.history.filter(x => x.id !== h.id);
             saveLocal();
-            toast('已刪除', 'success');
+            toast('已刪除並回沖', 'success');
             draw();
           };
         }
@@ -1184,7 +1191,7 @@ async function compressImage(fileOrDataUrl, maxDim) {
 }
 
 // ====== Service worker + 強制更新 ======
-const APP_VERSION = 'v1.0.25';
+const APP_VERSION = 'v1.0.26';
 
 function clearCacheAndReload() {
   if (!confirm('清除快取並重新載入？')) return;
