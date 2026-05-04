@@ -453,6 +453,7 @@ function renderHome(root) {
     <div class="tabs">
       <button class="tab-btn" data-go="tasks"><span class="emoji">📝</span>任務</button>
       <button class="tab-btn" data-go="shop"><span class="emoji">🎁</span>商店</button>
+      <button class="tab-btn" data-go="spin"><span class="emoji">🎰</span>轉盤</button>
       <button class="tab-btn" data-go="history"><span class="emoji">📖</span>紀錄</button>
     </div>
     <button class="btn btn-block btn-ghost adult-ui" id="admin-btn" style="margin-top:24px;">🔐 管理模式</button>
@@ -536,6 +537,7 @@ function applyTaskPoints(t, points, reason) {
 }
 
 function renderSpin(root, taskId) {
+  if (!taskId) return renderStandaloneSpin(root);
   const t = state.tasks.find(x => x.id === taskId);
   if (!t || !t.spinner || !t.spinner.enabled) {
     nav('tasks');
@@ -761,12 +763,13 @@ async function buyGift(id) {
   render();
 }
 
-function renderHistory(root) {
+function renderHistory(root, fromAdmin = false) {
+  // 走 admin/history 路由時 render() 已關掉 mei-view，這裡只切回家鈕文字 / 目標
   let filter = 'all';
   function draw() {
     root.innerHTML = `
       <div class="page-head">
-        <button class="back-btn" data-back>← 回家</button>
+        <button class="back-btn" data-back>← ${fromAdmin ? '回管理' : '回家'}</button>
         <h2>📖 紀錄</h2>
         <div style="width:60px"></div>
       </div>
@@ -800,7 +803,7 @@ function renderHistory(root) {
       });
     }
     root.querySelectorAll('[data-f]').forEach(c => c.onclick = () => { filter = c.dataset.f; draw(); });
-    root.querySelector('[data-back]').onclick = () => nav('home');
+    root.querySelector('[data-back]').onclick = () => nav(fromAdmin ? 'admin' : 'home');
   }
   draw();
 }
@@ -810,6 +813,7 @@ function renderAdmin(root, sub) {
   if (sub === 'shop') return renderAdminShop(root);
   if (sub === 'balance') return renderAdminBalance(root);
   if (sub === 'spin') return renderAdminSpin(root);
+  if (sub === 'history') return renderHistory(root, true);
   root.innerHTML = `
     <div class="page-head">
       <button class="back-btn" data-back>← 回家</button>
@@ -820,8 +824,7 @@ function renderAdmin(root, sub) {
       <button class="admin-tile" data-go="admin/tasks"><span class="emoji">📝</span>任務管理</button>
       <button class="admin-tile" data-go="admin/shop"><span class="emoji">🎁</span>商店管理</button>
       <button class="admin-tile" data-go="admin/balance"><span class="emoji">💰</span>手動加扣</button>
-      <button class="admin-tile" data-go="admin/spin"><span class="emoji">🎰</span>獨立轉盤</button>
-      <button class="admin-tile" data-go="history"><span class="emoji">📖</span>紀錄</button>
+      <button class="admin-tile" data-go="admin/history"><span class="emoji">📖</span>紀錄</button>
     </div>
     <div class="card" style="margin-top:16px;">
       <div class="card-row">
@@ -1169,7 +1172,7 @@ async function compressImage(fileOrDataUrl, maxDim) {
 }
 
 // ====== Service worker + 強制更新 ======
-const APP_VERSION = 'v1.0.22';
+const APP_VERSION = 'v1.0.23';
 
 function clearCacheAndReload() {
   if (!confirm('清除快取並重新載入？')) return;
