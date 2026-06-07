@@ -288,6 +288,45 @@ async function authenticate(label = '請驗證身份') {
   });
 }
 
+// ====== 改密碼 ======
+async function changePasswordFlow() {
+  // 先用 Face ID 或目前密碼驗證身份
+  if (await authenticate('改密碼前先驗證身份') === false) return;
+
+  let stage = 'new1';
+  let firstPin = '';
+  const wrap = document.createElement('div');
+  const intro = document.createElement('p');
+  intro.style.cssText = 'text-align:center;color:var(--muted);font-size:14px;margin-bottom:6px;';
+  intro.textContent = '輸入新的 4 位數密碼';
+  wrap.appendChild(intro);
+  const pad = showPinPad({
+    length: 4,
+    onComplete: async (entered) => {
+      if (stage === 'new1') {
+        firstPin = entered;
+        stage = 'new2';
+        intro.textContent = '再輸入一次確認';
+        return true;
+      }
+      if (stage === 'new2') {
+        if (entered !== firstPin) {
+          intro.textContent = '兩次不一樣，重新輸入';
+          stage = 'new1';
+          return false;
+        }
+        state.auth.pinHash = await sha256(entered);
+        saveLocal();
+        modal.close();
+        toast('✨ 密碼已更新', 'success');
+        return true;
+      }
+    },
+  });
+  wrap.appendChild(pad);
+  const modal = showModal({ title: '🔒 改密碼', content: wrap, center: true, className: 'adult-ui' });
+}
+
 // ====== 初始設定（首次開啟） ======
 async function setupFirstTime() {
   return new Promise((resolve) => {
@@ -866,6 +905,16 @@ function renderAdmin(root, sub) {
         <button class="btn btn-ghost" id="reset-pin">改</button>
       </div>
     </div>
+    <div class="card" style="margin-top:8px;">
+      <div class="card-row">
+        <div class="card-icon">🔒</div>
+        <div class="card-body">
+          <div class="card-title">密碼</div>
+          <div class="card-sub">任務 / 兌換 / 管理時驗證用</div>
+        </div>
+        <button class="btn btn-ghost" id="change-pw">改</button>
+      </div>
+    </div>
     <button class="btn btn-block btn-ghost" id="logout" style="margin-top:24px;">🚪 登出（資料留在雲端）</button>
     <button class="btn btn-block btn-danger" id="wipe-all" style="margin-top:8px;font-size:13px;">⚠️ 清除雲端資料（不可復原）</button>
   `;
@@ -881,6 +930,7 @@ function renderAdmin(root, sub) {
       syncPush();
     }
   };
+  root.querySelector('#change-pw').onclick = () => changePasswordFlow();
   root.querySelector('#logout').onclick = async () => {
     if (!confirm('登出後本機資料會清空，但雲端資料保留。下次開啟可選「從雲端還原」。')) return;
     if (await authenticate('確認登出') === false) return;
@@ -1218,7 +1268,7 @@ async function compressImage(fileOrDataUrl, maxDim) {
 }
 
 // ====== Service worker + 強制更新 ======
-const APP_VERSION = 'v1.0.28';
+const APP_VERSION = 'v1.0.29';
 
 function clearCacheAndReload() {
   if (!confirm('清除快取並重新載入？')) return;
