@@ -36,9 +36,10 @@ export default {
       if (request.method === 'PUT') {
         const body = await request.json();
         if (!body || typeof body !== 'object') return json({ error: 'invalid body' }, 400, cors);
-        const payload = JSON.stringify({ state: body, updatedAt: Date.now() });
-        await env.STATE_KV.put(key, payload);
-        return json({ ok: true, updatedAt: Date.now() }, 200, cors);
+        // 存進去與回給 client 的時間用同一個值，client 才能精準對齊 lastServerSync
+        const now = Date.now();
+        await env.STATE_KV.put(key, JSON.stringify({ state: body, updatedAt: now }));
+        return json({ ok: true, updatedAt: now }, 200, cors);
       }
 
       return json({ error: 'method not allowed' }, 405, cors);

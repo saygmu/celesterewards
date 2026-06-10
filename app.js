@@ -36,6 +36,7 @@ function loadLocal() {
 function saveLocal() {
   state.updatedAt = Date.now();
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  pendingPush = true;
   scheduleSync();
 }
 async function sha256(str) {
@@ -54,30 +55,58 @@ function dailyReset() {
   }
 }
 
-// 每 15 秒 pull + 切回前景時 pull（近即時跨裝置同步）
+// 每 15 秒 sync + 切回前景時 sync（近即時跨裝置同步）
 let pullTimer = null;
 function startSyncPolling() {
   if (pullTimer) return;
-  pullTimer = setInterval(() => { if (document.visibilityState === 'visible') syncPull(); }, 15000);
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') syncPull(); });
+  pullTimer = setInterval(() => { if (document.visibilityState === 'visible') syncTick(); }, 15000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') syncTick(); });
 }
 
 // ====== Sync ======
+// 跨裝置排序「只認伺服器寫入時間」(回應/GET 的 data.updatedAt)，不看各裝置本機時鐘。
+// 舊版用 state.updatedAt（推送那台的本機時鐘）比較，裝置時鐘一有偏差就會 split-brain，
+// 卡住不同步、要重新登入才恢復。lastServerSync = 我們目前手上這份資料對應的伺服器時間。
+const SYNC_META_KEY = 'celesterewards.lastsync';
+let lastServerSync = Number(localStorage.getItem(SYNC_META_KEY)) || 0;
+let pendingPush = false;
+function setLastServerSync(v) {
+  lastServerSync = Number(v) || 0;
+  localStorage.setItem(SYNC_META_KEY, String(lastServerSync));
+}
 function scheduleSync() {
   clearTimeout(syncTimer);
   syncTimer = setTimeout(syncPush, 800);
 }
+async function syncTick() {
+  if (pendingPush) await syncPush();   // 先補推本機未送出的變更（含上次推送失敗的）
+  await syncPull();
+}
 async function syncPush() {
   if (!pin) return;
   try {
-    await fetch(`${SYNC_BASE}/state`, {
+    const res = await fetch(`${SYNC_BASE}/state`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'X-Pin': pin },
       body: JSON.stringify(state),
     });
+    if (!res.ok) return;               // 失敗保留 pendingPush，下次 tick 自動重試
+    const data = await res.json().catch(() => null);
+    if (data && data.updatedAt) setLastServerSync(data.updatedAt);
+    pendingPush = false;
   } catch (e) {
-    console.warn('sync push failed', e);
+    console.warn('sync push failed', e);  // pendingPush 維持 true → 自動重試
   }
+}
+function adoptServerState(remoteState, serverUpdatedAt) {
+  // webauthnCredId 是平台/裝置綁定的，不該被別台覆蓋 → 保留本機自己的
+  const localCred = (state.auth && state.auth.webauthnCredId) || null;
+  state = { ...defaultState(), ...remoteState };
+  if (!state.auth) state.auth = { pinHash: null, webauthnCredId: null };
+  state.auth.webauthnCredId = localCred;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  setLastServerSync(serverUpdatedAt);
+  render();
 }
 async function syncPull() {
   if (!pin) return;
@@ -85,10 +114,9 @@ async function syncPull() {
     const res = await fetch(`${SYNC_BASE}/state`, { headers: { 'X-Pin': pin } });
     if (!res.ok) return;
     const data = await res.json();
-    if (data && data.state && data.state.updatedAt > (state.updatedAt || 0)) {
-      state = { ...defaultState(), ...data.state };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-      render();
+    // 只認伺服器時間：比我們上次同步點更新才採用
+    if (data && data.state && (Number(data.updatedAt) || 0) > lastServerSync) {
+      adoptServerState(data.state, data.updatedAt);
     }
   } catch (e) {
     console.warn('sync pull failed', e);
@@ -447,6 +475,8 @@ async function restoreFlow() {
           pin = entered;
           localStorage.setItem(PIN_KEY, pin);
           localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+          setLastServerSync(data.updatedAt || 0);  // 記住伺服器時間，避免輪詢誤判
+          pendingPush = false;
           // 還原已完成 → 先把畫面切過去。Face ID 是選用的，絕不該擋住載入。
           modal.close();
           toast('✨ 從雲端還原成功', 'success');
