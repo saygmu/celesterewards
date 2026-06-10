@@ -199,11 +199,29 @@ function showPinPad({ title, length = 4, onComplete }) {
 }
 
 // ====== WebAuthn (Face ID) ======
+// iOS standalone PWA 下，navigator.credentials 的 Promise 偶爾刷完臉後
+// 既不 resolve 也不 reject（WebKit 不一定遵守內建 timeout），會把登入流程卡死。
+// 用一個 JS 端逾時保險把它兜住：最久 WEBAUTHN_TIMEOUT_MS 後一定落地，
+// 流程才能繼續關掉 modal / render()。
+const WEBAUTHN_TIMEOUT_MS = 30000;
+const webauthnSupported = () =>
+  !!(window.PublicKeyCredential && navigator.credentials && navigator.credentials.create);
+function withTimeout(promise, ms, fallback) {
+  let timer;
+  const guard = new Promise((resolve) => {
+    timer = setTimeout(() => {
+      console.warn('WebAuthn timed out after', ms, 'ms — falling back');
+      resolve(fallback);
+    }, ms);
+  });
+  return Promise.race([promise, guard]).finally(() => clearTimeout(timer));
+}
 async function tryWebAuthnRegister() {
+  if (!webauthnSupported()) return null;
   try {
     const challenge = crypto.getRandomValues(new Uint8Array(32));
     const userId = crypto.getRandomValues(new Uint8Array(16));
-    const cred = await navigator.credentials.create({
+    const cred = await withTimeout(navigator.credentials.create({
       publicKey: {
         challenge,
         rp: { name: '喬喬集點屋', id: location.hostname },
@@ -212,7 +230,7 @@ async function tryWebAuthnRegister() {
         authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required' },
         timeout: 60000,
       },
-    });
+    }), WEBAUTHN_TIMEOUT_MS, null);
     if (!cred) return null;
     return btoa(String.fromCharCode(...new Uint8Array(cred.rawId)));
   } catch (e) {
@@ -221,19 +239,20 @@ async function tryWebAuthnRegister() {
   }
 }
 async function tryWebAuthnVerify() {
-  if (!state.auth.webauthnCredId) return false;
+  if (!state.auth.webauthnCredId || !webauthnSupported()) return false;
   try {
     const challenge = crypto.getRandomValues(new Uint8Array(32));
     const credIdBytes = Uint8Array.from(atob(state.auth.webauthnCredId), c => c.charCodeAt(0));
-    await navigator.credentials.get({
+    const TIMED_OUT = Symbol('timeout');
+    const result = await withTimeout(navigator.credentials.get({
       publicKey: {
         challenge,
         allowCredentials: [{ type: 'public-key', id: credIdBytes, transports: ['internal'] }],
         userVerification: 'required',
         timeout: 60000,
       },
-    });
-    return true;
+    }), WEBAUTHN_TIMEOUT_MS, TIMED_OUT);
+    return result !== TIMED_OUT;
   } catch (e) {
     console.warn('WebAuthn verify failed', e);
     return false;
@@ -382,13 +401,19 @@ async function newAccountFlow() {
         if (stage === 'syncpin') {
           pin = entered;
           localStorage.setItem(PIN_KEY, pin);
-          intro.textContent = '正在嘗試啟用 Face ID...';
-          const credId = await tryWebAuthnRegister();
-          if (credId) state.auth.webauthnCredId = credId;
+          // 帳號已建立並存檔 → 先把畫面切過去，Face ID 啟用不擋載入。
           saveLocal();
           modal.close();
-          toast(credId ? '✨ Face ID 啟用成功' : '帳號建立完成', 'success');
+          toast('✨ 帳號建立完成', 'success');
           resolve(true);
+          // 背景嘗試啟用 Face ID；卡住/失敗都不影響已建立的帳號。
+          tryWebAuthnRegister().then((credId) => {
+            if (credId) {
+              state.auth.webauthnCredId = credId;
+              saveLocal();
+              toast('😊 Face ID 已啟用', 'success');
+            }
+          });
           return true;
         }
       },
@@ -422,15 +447,18 @@ async function restoreFlow() {
           pin = entered;
           localStorage.setItem(PIN_KEY, pin);
           localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-          intro.textContent = '載入成功！嘗試啟用 Face ID...';
-          const credId = await tryWebAuthnRegister();
-          if (credId) {
-            state.auth.webauthnCredId = credId;
-            saveLocal();
-          }
+          // 還原已完成 → 先把畫面切過去。Face ID 是選用的，絕不該擋住載入。
           modal.close();
           toast('✨ 從雲端還原成功', 'success');
           resolve(true);
+          // 背景嘗試啟用 Face ID；就算卡住/失敗也不影響已登入的畫面。
+          tryWebAuthnRegister().then((credId) => {
+            if (credId) {
+              state.auth.webauthnCredId = credId;
+              saveLocal();
+              toast('😊 Face ID 已啟用', 'success');
+            }
+          });
           return true;
         } catch (e) {
           intro.textContent = '雲端連不上或 PIN 錯誤';
